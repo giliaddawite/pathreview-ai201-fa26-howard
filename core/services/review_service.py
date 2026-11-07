@@ -33,6 +33,20 @@ async def create_review(
     return review
 
 
+async def profile_has_reviewable_content(db, profile: Profile) -> bool:
+    """
+    Return True if the profile has anything for the review pipeline to work with:
+    either previously ingested sources, or a source the pipeline can ingest
+    (resume text, GitHub username, or portfolio URL).
+    """
+    if profile.resume_text or profile.github_username or profile.portfolio_url:
+        return True
+
+    stmt = select(IngestedSource.id).where(IngestedSource.profile_id == profile.id).limit(1)
+    result = await db.execute(stmt)
+    return result.scalars().first() is not None
+
+
 async def get_review(
     db,
     review_id: UUID,

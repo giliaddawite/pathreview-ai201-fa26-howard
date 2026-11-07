@@ -7,11 +7,13 @@ from api.middleware.auth import get_current_user
 from api.schemas.review import ReviewCreate, ReviewListResponse, ReviewResponse
 from core.database import get_db
 from core.models.user import User
+from core.services.profile_service import get_profile
 from core.services.review_service import (
     create_review,
     get_review,
     list_reviews,
     process_review,
+    profile_has_reviewable_content,
 )
 
 log = structlog.get_logger()
@@ -32,6 +34,22 @@ async def create_review_endpoint(
     Returns review with status="pending" immediately.
     """
     try:
+        profile = await get_profile(db, data.profile_id, current_user.id)
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Profile not found",
+            )
+
+        if not await profile_has_reviewable_content(db, profile):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "Profile has no ingested content to review. "
+                    "Upload a resume or add a GitHub username or portfolio URL first."
+                ),
+            )
+
         # Create review with status="pending"
         review = await create_review(
             db=db,
