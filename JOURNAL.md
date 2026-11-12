@@ -42,3 +42,40 @@ have content can still be reviewed.
 **Setup confirmation:** [x] App runs locally at localhost:5173
 
 **Cohort ledger:** [ ] Issue added to cohort ledger
+
+## Unit 8 — Reproduction & solution planning
+
+**Reproduction commit link:** https://github.com/giliaddawite/pathreview-ai201-fa26-howard/commit/dd1d2476d99bb485f95c2101e247065c3768ade1
+
+**Reproduction summary:**
+I added `tests/unit/test_review_no_content_repro.py`, which mocks only the DB session, and
+ran it against the pre-fix route and service from `790d8c4`. `POST /reviews` for a profile
+with no resume, GitHub username, portfolio URL, or `ingested_sources` rows returned
+`200 {"status": "pending"}`. Then `process_review()` marked the review `complete` with three
+hardcoded feedback sections and `overall_score=0.81`, a "successful" review of nothing.
+The same test also showed that my earlier route guard (`df78fcf`) blocks the endpoint, but
+the background job still fakes success. That test stays `xfail(strict=True)` until Unit 9.
+
+To reproduce:
+```bash
+git checkout 790d8c4 -- api/routes/reviews.py core/services/review_service.py
+.venv/Scripts/python -m pytest tests/unit/test_review_no_content_repro.py -v -rxX
+# -> route test FAILS: "expected 422 ... got 200: {... 'status': 'pending' ...}"
+.venv/Scripts/python -m pytest tests/unit/test_review_no_content_repro.py --runxfail -k process_review
+# -> "review was marked complete with sections=[...] overall_score=0.81"
+git checkout HEAD -- api/routes/reviews.py core/services/review_service.py
+```
+
+**PLAN.md link:** https://github.com/giliaddawite/pathreview-ai201-fa26-howard/blob/test/36-review-no-ingested-content/PLAN.md
+
+**Walkthrough video (recommended):**
+
+**Blockers or open questions:**
+- Do maintainers agree that "no ingested content" means no `ingested_sources` rows *and*
+  nothing ingestible? Checking only the table would block every first review.
+- Should the frontend change (`NewProfilePage` swallows the 422 and redirects) be part of
+  this PR or a separate issue?
+- I wrote the first-draft fix (`df78fcf`) before the formal reproduction. I kept that
+  history instead of rewriting it, and the plan treats that commit as a starting point.
+- I couldn't reproduce against the live stack because Docker Desktop wasn't running
+  (Postgres on :5433). The unit-level repro exercises the real route and service code.
